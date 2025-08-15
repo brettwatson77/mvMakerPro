@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { submit } from '../lib/api'
 
-export default function ShotList({ scene, selections, onToggle }) {
+export default function ShotList({ scene }) {
   function Shot({ sh }) {
     const [prompt, setPrompt] = useState(sh.prompt || '')
     const [busy, setBusy] = useState(false)
@@ -18,12 +18,8 @@ export default function ShotList({ scene, selections, onToggle }) {
 
     return (
       <div className="rounded-xl border border-zinc-800 p-3 bg-black/20">
-        <label className="flex items-start gap-3">
-          <input
-            type="checkbox"
-            checked={!!selections[sh.id]}
-            onChange={e => onToggle(sh, e.target.checked)}
-          />
+        <div className="flex space-x-3">
+          {/* left column could house thumbnail or future controls */}
           <div className="flex-1 space-y-2">
             <div className="font-medium">
               {sh.title}{' '}
@@ -47,7 +43,7 @@ export default function ShotList({ scene, selections, onToggle }) {
               </button>
             </div>
           </div>
-        </label>
+        </div>
       </div>
     )
   }
