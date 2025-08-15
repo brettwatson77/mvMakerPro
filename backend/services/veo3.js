@@ -62,16 +62,15 @@ export async function pollAndDownload(id) {
     if (!operation.done) await new Promise(r => setTimeout(r, 2000));
   }
 
-  // 🔎 DEBUG: Inspect full response structure to confirm download URI location
-  console.log('[veo] operation.response dump:', JSON.stringify(operation.response, null, 2));
-
   /* ------------------------------------------------------------
      Download the video with axios stream to avoid SDK issues
   ------------------------------------------------------------ */
   const videoObj = operation.response.generatedVideos?.[0];
   if (!videoObj) throw new Error('missing video object from Veo response');
 
-  const videoUri = videoObj.video;
+  // Correct property path where Veo provides the public download URL
+  const videoUri = videoObj.video?.uri;
+  if (!videoUri) throw new Error('missing video URI in Veo response');
   const file = path.join(VIDEO_DIR, `${id}.mp4`);
 
   const writer = fs.createWriteStream(file);
