@@ -74,7 +74,13 @@ export async function pollAndDownload(id) {
   const file = path.join(VIDEO_DIR, `${id}.mp4`);
 
   const writer = fs.createWriteStream(file);
-  const response = await axios.get(videoUri, { responseType: 'stream' });
+  const response = await axios.get(videoUri, {
+    responseType: 'stream',
+    /* Google file endpoints require the same auth as the submit call */
+    headers: {
+      Authorization: `Bearer ${process.env.GEMINI_API_KEY}`
+    }
+  });
 
   // Pipe and await completion
   await new Promise((resolve, reject) => {
