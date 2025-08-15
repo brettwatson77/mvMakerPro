@@ -1,7 +1,12 @@
-import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
 import { fetchJob, listJobs } from '../lib/api'
 
-export default function VeoQueue() {
+/**
+ * VeoQueue
+ * Exposes its `refresh` method through a ref so the parent can
+ * trigger a queue refresh programmatically after submitting shots.
+ */
+function VeoQueue (props, ref) {
   const [jobs, setJobs] = useState([])
   const [refreshing, setRefreshing] = useState(false)
 
@@ -18,6 +23,9 @@ export default function VeoQueue() {
   }
 
   useEffect(() => { refresh() }, [])
+
+  /* ---------- expose imperative handle to parent ------------ */
+  useImperativeHandle(ref, () => ({ refresh }), [refresh])
 
   return (
     <div className="card space-y-3">
@@ -49,3 +57,5 @@ export default function VeoQueue() {
     </div>
   )
 }
+
+export default forwardRef(VeoQueue)

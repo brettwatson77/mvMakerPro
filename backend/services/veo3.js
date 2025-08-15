@@ -41,7 +41,8 @@ export async function pollAndDownload(id) {
 
   const videoObj = operation.response.generatedVideos[0];
   const file = path.join(VIDEO_DIR, `${id}.mp4`);
-  await ai.files.download({ file: videoObj.video, downloadPath: file });
+  // Google GenAI SDK uses `ai.media.download`, not `ai.files.download`
+  await ai.media.download({ file: videoObj.video, downloadPath: file });
 
   db.prepare(`UPDATE jobs SET status = 'DONE', file_path = ? WHERE id = ?`).run(`/videos/${id}.mp4`, id);
   return { id, file: `/videos/${id}.mp4` };

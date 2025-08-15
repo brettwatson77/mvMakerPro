@@ -1,7 +1,7 @@
 import React, { useState } from 'react'
 import { submit } from '../lib/api'
 
-export default function ShotList({ scene }) {
+export default function ShotList({ scene, onGenerate = () => {} }) {
   function Shot({ sh }) {
     const [prompt, setPrompt] = useState(sh.prompt || '')
     const [busy, setBusy] = useState(false)
@@ -11,6 +11,7 @@ export default function ShotList({ scene }) {
       try {
         // minimal payload: reuse existing submit route signature
         await submit({ shots: [{ id: sh.id, title: sh.title, prompt }] })
+        onGenerate()                // notify parent to refresh queue
       } finally {
         setBusy(false)
       }

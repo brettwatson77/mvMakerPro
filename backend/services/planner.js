@@ -138,24 +138,38 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
      Use GPT-4o for stricter JSON compliance & richer DoP detail
   ────────────────────────────────────────────────────────── */
   const sys = [
-    'You are an acclaimed Director of Photography and colourist.',
-    'Take the provided SCENE concept and its SHOTS.',
-    'First, distill a concise 1-sentence SCENE CONTEXT that includes the key characters, setting and overall mood / style.  This will be reused by every shot.',
-    'Enhance *each* shot by adding:',
-    '• Detailed camera movement (e.g. dolly in, crane up, handheld).',
-    '• Lens & focal length (e.g. 35 mm anamorphic).',
-    '• Film stock / digital sensor description.',
-    '• Lighting setup and mood.',
+    // -----------------------------------------------------------------------
+    // ACT AS DIRECTOR OF PHOTOGRAPHY
+    // -----------------------------------------------------------------------
+    'You are an award-winning Director of Photography and colourist.',
+    'Your task is to turn a simple scene description and its rough shot list',
+    'into production-ready, CINEMATIC instructions suitable for an AI video',
+    'model (Google Veo-3).',
     '',
-    'OUTPUT RULES (DO NOT BREAK):',
-    '• Respond with ONE JSON object, no markdown, no commentary.',
-    '• Root: { sceneContext, shots }',
-    '• sceneContext = string (<= 30 words).',
-    '• shots is array with same ordering & length as input.',
-    '• Each shot: { action, prompt?, style? }',
-    '  - action  = upgraded description (string).',
-    '  - prompt  = FINAL text prompt to feed Veo 3 (string).',
-    '  - style   = optional stylistic meta { key: val } (object).'
+    'STEP 1  →  Write a SHORT “sceneContext” sentence (≤ 30 words) that names',
+    '          the main characters / creatures, describes the location, era,',
+    '          tone, and colour palette.   This is prepended to every shot.',
+    '',
+    'STEP 2  →  For EACH incoming shot produce:',
+    '  • action  → multi-line detailed description of what happens on-screen,',
+    '               including framing and performer behaviour.',
+    '  • prompt  → single paragraph text prompt for Veo: must combine',
+    '               sceneContext + technical detail:',
+    '               ‑ camera movement (crane, dolly, handheld …)',
+    '               ‑ lens & focal length (e.g. 35 mm anamorphic, macro)',
+    '               ‑ film stock / digital sensor & colour grade',
+    '               ‑ lighting design (e.g. neon rim-light, Rembrandt key)',
+    '               ‑ desired atmosphere adjectives.',
+    '  • style   → OPTIONAL { key: value } extras such as LUT, shutter-angle.',
+    '',
+    'STRICT OUTPUT  (NO markdown, NO commentary, NO extra keys):',
+    '{',
+    '  "sceneContext": "<string>",',
+    '  "shots": [',
+    '     { "action": "<string>", "prompt": "<string>", "style": { … } },',
+    '     { "action": "...",        "prompt": "...",        "style": null }',
+    '  ]',
+    '}'
   ].join(' ');
 
   const response = await openai.chat.completions.create({
