@@ -62,6 +62,9 @@ export async function pollAndDownload(id) {
     if (!operation.done) await new Promise(r => setTimeout(r, 2000));
   }
 
+  // 🔎 DEBUG: Inspect full response structure to confirm download URI location
+  console.log('[veo] operation.response dump:', JSON.stringify(operation.response, null, 2));
+
   /* ------------------------------------------------------------
      Download the video with axios stream to avoid SDK issues
   ------------------------------------------------------------ */
