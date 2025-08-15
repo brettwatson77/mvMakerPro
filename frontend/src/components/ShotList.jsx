@@ -6,6 +6,11 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
     const [prompt, setPrompt] = useState(sh.prompt || '')
     const [busy, setBusy] = useState(false)
 
+    /* keep local prompt state in sync if parent updates sh.prompt */
+    React.useEffect(() => {
+      setPrompt(sh.prompt || '')
+    }, [sh.prompt])
+
     const doGenerate = async () => {
       setBusy(true)
       try {

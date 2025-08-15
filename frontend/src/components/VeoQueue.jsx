@@ -1,5 +1,5 @@
 import React, { useEffect, useState, forwardRef, useImperativeHandle } from 'react'
-import { fetchJob, listJobs } from '../lib/api'
+import { listJobs, remove } from '../lib/api'
 
 /**
  * VeoQueue
@@ -17,12 +17,16 @@ function VeoQueue (props, ref) {
     setRefreshing(false)
   }
 
-  const pull = async (id) => {
-    await fetchJob(id)
+  const doRemove = async (id) => {
+    await remove(id)
     await refresh()
   }
 
-  useEffect(() => { refresh() }, [])
+  useEffect(() => {
+    refresh()
+    const timer = setInterval(refresh, 5000)
+    return () => clearInterval(timer)
+  }, [])
 
   /* ---------- expose imperative handle to parent ------------ */
   useImperativeHandle(ref, () => ({ refresh }), [refresh])
@@ -44,11 +48,10 @@ function VeoQueue (props, ref) {
                 <div className="text-xs text-zinc-400">{j.status}</div>
               </div>
               <div className="space-x-2">
-                {j.status !== 'DONE' ? (
-                  <button className="btn" onClick={() => pull(j.id)}>Fetch</button>
-                ) : (
+                {j.status === 'DONE' && (
                   <a className="btn" href={j.file} target="_blank">Download</a>
                 )}
+                <button className="btn bg-red-700 hover:bg-red-800" onClick={() => doRemove(j.id)}>Delete</button>
               </div>
             </div>
           </div>

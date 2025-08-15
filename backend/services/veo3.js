@@ -18,7 +18,12 @@ export async function submitShots({ shots, model = 'preview', aspectRatio = '16:
     const op = await ai.models.generateVideos({
       model: modelName,
       prompt: shot.prompt,
-      config: { aspectRatio, ...(negativePrompt ? { negativePrompt } : {}) }
+      // Disable audio generation for faster, cheaper output
+      config: {
+        aspectRatio,
+        enableAudio: false,
+        ...(negativePrompt ? { negativePrompt } : {})
+      }
     });
 
     const id = uuidv4();
@@ -46,6 +51,16 @@ export async function pollAndDownload(id) {
 
   db.prepare(`UPDATE jobs SET status = 'DONE', file_path = ? WHERE id = ?`).run(`/videos/${id}.mp4`, id);
   return { id, file: `/videos/${id}.mp4` };
+}
+
+/**
+ * Delete a job row by id.
+ * Returns the number of rows removed (0 | 1).
+ */
+export function deleteJob(id) {
+  const db = getDb();
+  const info = db.prepare(`DELETE FROM jobs WHERE id = ?`).run(id);
+  return info.changes; // 1 if deleted, 0 if nothing matched
 }
 
 export function getJobs() {
