@@ -1,6 +1,7 @@
 import { ai, MODELS } from './genaiClient.js';
 import fs from 'fs';
 import path from 'path';
+import axios from 'axios';
 import { getDb } from '../db/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
@@ -61,10 +62,24 @@ export async function pollAndDownload(id) {
     if (!operation.done) await new Promise(r => setTimeout(r, 2000));
   }
 
-  const videoObj = operation.response.generatedVideos[0];
+  /* ------------------------------------------------------------
+     Download the video with axios stream to avoid SDK issues
+  ------------------------------------------------------------ */
+  const videoObj = operation.response.generatedVideos?.[0];
+  if (!videoObj) throw new Error('missing video object from Veo response');
+
+  const videoUri = videoObj.video;
   const file = path.join(VIDEO_DIR, `${id}.mp4`);
-  // Google GenAI SDK uses `ai.media.download`, not `ai.files.download`
-  await ai.media.download({ file: videoObj.video, downloadPath: file });
+
+  const writer = fs.createWriteStream(file);
+  const response = await axios.get(videoUri, { responseType: 'stream' });
+
+  // Pipe and await completion
+  await new Promise((resolve, reject) => {
+    response.data.pipe(writer);
+    writer.on('finish', resolve);
+    writer.on('error', reject);
+  });
 
   db.prepare(`UPDATE jobs SET status = 'DONE', file_path = ? WHERE id = ?`).run(`/videos/${id}.mp4`, id);
   return { id, file: `/videos/${id}.mp4` };
