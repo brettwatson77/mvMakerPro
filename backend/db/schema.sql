@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS scenes (
   start_sec INTEGER,
   end_sec INTEGER,
   concept TEXT
+  ,context TEXT
 );
 
 CREATE TABLE IF NOT EXISTS shots (

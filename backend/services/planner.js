@@ -113,7 +113,7 @@ export async function planScenes({ description, songLengthSec, targetAspect = '1
           sh.title,
           sh.action,
           sh.durationSec ?? 8,
-          sh.prompt || null,
+          (sh.prompt || sh.action || null), // ensure a default prompt exists
           sh.style ? JSON.stringify(sh.style) : null
         );
       }
@@ -134,16 +134,45 @@ export function getPlan(planId) {
 }
 
 export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic' }) {
-  const sys = `You are a cinematographer. Enhance the shot ACTIONS with lens, camera, depth, film stock, lighting. Output JSON.`;
-  const response = await ai.models.generateContent({
-    model: MODELS.textPlanner,
-    systemInstruction: { role: 'system', parts: [{ text: sys }] },
-    contents: [{ role: 'user', parts: [{ text: JSON.stringify({ concept, shots, dial }) }] }],
-    generationConfig: { responseMimeType: 'application/json' }
+  /* ──────────────────────────────────────────────────────────
+     Use GPT-4o for stricter JSON compliance & richer DoP detail
+  ────────────────────────────────────────────────────────── */
+  const sys = [
+    'You are an acclaimed Director of Photography and colourist.',
+    'Take the provided SCENE concept and its SHOTS.',
+    'First, distill a concise 1-sentence SCENE CONTEXT that includes the key characters, setting and overall mood / style.  This will be reused by every shot.',
+    'Enhance *each* shot by adding:',
+    '• Detailed camera movement (e.g. dolly in, crane up, handheld).',
+    '• Lens & focal length (e.g. 35 mm anamorphic).',
+    '• Film stock / digital sensor description.',
+    '• Lighting setup and mood.',
+    '',
+    'OUTPUT RULES (DO NOT BREAK):',
+    '• Respond with ONE JSON object, no markdown, no commentary.',
+    '• Root: { sceneContext, shots }',
+    '• sceneContext = string (<= 30 words).',
+    '• shots is array with same ordering & length as input.',
+    '• Each shot: { action, prompt?, style? }',
+    '  - action  = upgraded description (string).',
+    '  - prompt  = FINAL text prompt to feed Veo 3 (string).',
+    '  - style   = optional stylistic meta { key: val } (object).'
+  ].join(' ');
+
+  const response = await openai.chat.completions.create({
+    model: MODELS.gpt4o,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: sys },
+      {
+        role: 'user',
+        content: JSON.stringify({ concept, shots, dial })
+      }
+    ]
   });
 
-  // 👇 robustly handle SDK differences and strip markdown fences
-  const txt = stripMarkdownCodeFence(getText(response));
+  // Extract the JSON string safely
+  const rawContent = response.choices?.[0]?.message?.content ?? '';
+  const txt = stripMarkdownCodeFence(rawContent);
   if (!txt) throw new Error('Empty enhance response');
   let out;
   try {
@@ -154,15 +183,24 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
   }
 
   const db = getDb();
-  const upScene = db.prepare(`UPDATE scenes SET concept = ? WHERE id = ?`);
-  const upShot = db.prepare(`UPDATE shots SET action = ?, style_json = ?, prompt = COALESCE(?, prompt) WHERE id = ?`);
+  const upScene = db.prepare(`UPDATE scenes SET concept = ?, context = ? WHERE id = ?`);
+  const upShot = db.prepare(`UPDATE shots SET action = ?, style_json = ?, prompt = ? WHERE id = ?`);
+
+  const sceneCtx = (out.sceneContext || '').trim();
 
   const tx = db.transaction(() => {
-    upScene.run(concept, sceneId);
+    upScene.run(concept, sceneCtx, sceneId);
     for (let i = 0; i < out.shots.length; i++) {
       const s = out.shots[i];
       const original = shots[i]; // same ordering from UI
-      upShot.run(s.action, s.style ? JSON.stringify(s.style) : null, s.prompt || null, original.id);
+      const basePrompt = s.prompt || '';
+      const finalPrompt = `${sceneCtx ? sceneCtx + ' ' : ''}${basePrompt}`.trim();
+      upShot.run(
+        s.action,
+        s.style ? JSON.stringify(s.style) : null,
+        finalPrompt,
+        original.id
+      );
     }
   });
   tx();
