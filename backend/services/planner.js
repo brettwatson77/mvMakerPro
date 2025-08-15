@@ -1,4 +1,4 @@
-import { ai, MODELS } from './genaiClient.js';
+import { ai, openai, MODELS } from './genaiClient.js';
 import { v4 as uuidv4 } from 'uuid';
 import { getDb } from '../db/db.js';
 
@@ -63,15 +63,23 @@ export async function planScenes({ description, songLengthSec, targetAspect = '1
     'ABSOLUTELY NO OTHER FIELDS.  ABSOLUTELY NO TEXT OUTSIDE THE JSON.',
   ].join(' ');
 
-  const response = await ai.models.generateContent({
-    model: MODELS.textPlanner,
-    systemInstruction: { role: 'system', parts: [{ text: sys }] },
-    contents: [{ role: 'user', parts: [{ text: `Video concept: ${description}\nSong length (sec): ${songLengthSec}\nAspect ratio: ${targetAspect}\n` }] }],
-    generationConfig: { responseMimeType: 'application/json' }
+  const response = await openai.chat.completions.create({
+    model: MODELS.gpt4o,
+    response_format: { type: 'json_object' },
+    messages: [
+      { role: 'system', content: sys },
+      {
+        role: 'user',
+        content: `Video concept: ${description}\nSong length (sec): ${songLengthSec}\nAspect ratio: ${targetAspect}`
+      }
+    ]
   });
 
-  // 👇 robustly handle SDK differences and strip markdown fences
-  const txt = stripMarkdownCodeFence(getText(response));
+  // extract JSON string
+  const rawContent = response.choices?.[0]?.message?.content ?? '';
+
+  // 👇 strip any accidental markdown fences (extra safety)
+  const txt = stripMarkdownCodeFence(rawContent);
   if (!txt) throw new Error('Empty planner response');
   let planned;
   try {
