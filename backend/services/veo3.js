@@ -15,17 +15,34 @@ export async function submitShots({ shots, model = 'preview', aspectRatio = '16:
 
   const submitted = [];
   for (const shot of shots) {
-    const op = await ai.models.generateVideos({
-      model: modelName,
-      prompt: shot.prompt,
-      // Disable audio generation for faster, cheaper output
-      config: {
-        aspectRatio,
-        enableAudio: false,
-        ...(negativePrompt ? { negativePrompt } : {})
-      }
-    });
+    /* ------------------------------------------------------------------
+       Submit generation request for a single shot with detailed logging
+    ------------------------------------------------------------------ */
+    console.log(`[veo] submitting shot ${shot.id} – "${shot.title}"`);
+    let op;
+    try {
+      op = await ai.models.generateVideos({
+        model: modelName,
+        prompt: shot.prompt,
+        // Disable audio generation for faster, cheaper output
+        config: {
+          aspectRatio,
+          enableAudio: false,
+          ...(negativePrompt ? { negativePrompt } : {})
+        }
+      });
+      console.log(`[veo] 📤 submit ok → operation=${op.name}`);
+    } catch (err) {
+      console.error('[veo] ❌ submit failed', {
+        shotId: shot.id,
+        title: shot.title,
+        error: err?.message || err
+      });
+      // skip this shot, continue with others
+      continue;
+    }
 
+    // record job in DB only after successful submission
     const id = uuidv4();
     insJob.run(id, shot.id, op.name, 'PENDING', Date.now());
     submitted.push({ id, title: shot.title });
