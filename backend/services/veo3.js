@@ -86,3 +86,14 @@ export function getJobs() {
                      FROM jobs j LEFT JOIN shots s ON s.id = j.shot_id
                      ORDER BY j.created_at DESC`).all();
 }
+
+/**
+ * Fetch jobs that are still waiting on the Veo API.
+ * These are the jobs our background poller should process.
+ */
+export function getPendingJobs() {
+  const db = getDb();
+  return db.prepare(`SELECT j.id, j.op_name
+                     FROM jobs j
+                     WHERE j.status = 'PENDING'`).all();
+}
