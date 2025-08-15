@@ -78,7 +78,8 @@ export async function pollAndDownload(id) {
     responseType: 'stream',
     /* Google file endpoints require the same auth as the submit call */
     headers: {
-      Authorization: `Bearer ${process.env.GEMINI_API_KEY}`
+      // For file downloads the API key must be supplied via x-goog-api-key
+      'x-goog-api-key': process.env.GEMINI_API_KEY
     }
   });
 
