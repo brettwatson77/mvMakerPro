@@ -6,7 +6,7 @@
  * to avoid rate limiting (429 Too Many Requests errors).
  */
 import { submitShots } from './veo3.js';
-import { zonedTimeToUtc } from 'date-fns-tz';
+import { fromZonedTime, toZonedTime } from 'date-fns-tz';
 
 // In-memory queue for storing shots waiting to be processed
 const queue = [];

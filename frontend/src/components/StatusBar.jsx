@@ -185,6 +185,22 @@ export default function StatusBar() {
   const statusInfo = getStatusInfo();
   const resumeTimeInfo = getResumeTimeInfo();
 
+  /* ------------------------------------------------------------------
+   * EARLY RETURN: while the very first status fetch is still running
+   * render a simple loading banner.  This prevents the component from
+   * touching queueStatus / pollerStatus before they exist and avoids
+   * a blank-screen crash.
+   * ------------------------------------------------------------------ */
+  if (loading && !queueStatus && !pollerStatus) {
+    return (
+      <div className="mb-4">
+        <div className="bg-gray-700 text-white p-3 rounded-lg">
+          Loading system status…
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="mb-4">
       {/* Status Bar */}
