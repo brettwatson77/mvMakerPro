@@ -12,20 +12,25 @@ export default function App() {
   }
 
   return (
-    <div className="max-w-6xl mx-auto p-6 space-y-6">
-      <h1 className="text-2xl font-semibold">Veo3 Scene Planner</h1>
-      <StatusBar />
-      <ScenePlanner onPlan={setPlan} />
+    <div className="w-full">
+      {/* -------- Center-constrained content -------- */}
+      <div className="max-w-6xl mx-auto p-6 space-y-6">
+        <h1 className="text-2xl font-semibold">Veo3 Scene Planner</h1>
+        <StatusBar />
+        <ScenePlanner onPlan={setPlan} />
+      </div>
 
+      {/* -------- Full-width horizontally scrolling scene list -------- */}
       {plan && (
-        <div className="flex overflow-x-auto space-x-4 py-2">
-          {/* Horizontally-scrolling scene list */}
-          {plan.scenes.map(s => (
-            <div key={s.id} className="space-y-3">
-              <SceneCard scene={s} onUpdate={updateScene} />
-              <ShotList scene={s} />
-            </div>
-          ))}
+        <div className="w-full overflow-x-auto py-2">
+          <div className="flex space-x-4 px-6">
+            {plan.scenes.map(s => (
+              <div key={s.id} className="space-y-3">
+                <SceneCard scene={s} onUpdate={updateScene} />
+                <ShotList scene={s} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
     </div>

@@ -239,12 +239,12 @@ export default function StatusBar() {
         <div className="flex items-center">
           {/* --- Sync button lives in the top bar for global visibility --- */}
           <button
-            className="btn btn-xs bg-blue-700 hover:bg-blue-800 disabled:bg-gray-600"
+            className="btn btn-xs bg-blue-700 hover:bg-blue-800 disabled:bg-gray-600 mr-4"
             onClick={e => { e.stopPropagation(); handleSync(); }}
             disabled={controlsLoading.sync}
             title="Download any videos that finished while the app was offline"
           >
-            {controlsLoading.sync ? 'Syncing…' : 'Sync Videos'}
+            {controlsLoading.sync ? 'Syncing…' : 'Check Server for Downloads'}
           </button>
 
           {queueStatus?.isPaused && resumeTimeInfo && (
