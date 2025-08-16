@@ -31,7 +31,9 @@ CREATE TABLE IF NOT EXISTS shots (
 
 CREATE TABLE IF NOT EXISTS jobs (
   id TEXT PRIMARY KEY,
-  shot_id TEXT NOT NULL REFERENCES shots(id) ON DELETE SET NULL,
+  -- shot_id is now nullable so that synced downloads without a source shot
+  -- can be recorded in the jobs table.
+  shot_id TEXT REFERENCES shots(id) ON DELETE SET NULL,
   op_name TEXT,
   status TEXT NOT NULL DEFAULT 'PENDING',
   file_path TEXT,

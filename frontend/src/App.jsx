@@ -18,7 +18,8 @@ export default function App() {
       <ScenePlanner onPlan={setPlan} />
 
       {plan && (
-        <div className="grid md:grid-cols-2 gap-4">
+        {/* Horizontally-scrolling scene list */}
+        <div className="flex overflow-x-auto space-x-4 py-2">
           {plan.scenes.map(s => (
             <div key={s.id} className="space-y-3">
               <SceneCard scene={s} onUpdate={updateScene} />

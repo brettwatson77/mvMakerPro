@@ -10,6 +10,8 @@ import {
   stopPoller
 } from '../lib/api';
 
+// 👉 global sync action
+import { sync as syncMissed } from '../lib/api';
 /**
  * StatusBar component
  * 
@@ -30,8 +32,12 @@ export default function StatusBar() {
     startQueue: false,
     stopQueue: false,
     startPoller: false,
-    stopPoller: false
+    stopPoller: false,
+    sync: false
   });
+
+  // --- sync result feedback ---
+  const [syncInfo, setSyncInfo] = useState(null);
 
   // Format the time until queue resumes in a friendly way
   const getResumeTimeInfo = () => {
@@ -75,6 +81,20 @@ export default function StatusBar() {
   };
 
   // Control handlers
+  const handleSync = async () => {
+    setControlsLoading(prev => ({ ...prev, sync: true }));
+    setSyncInfo(null);
+    try {
+      const result = await syncMissed();
+      setSyncInfo({ ok: true, ...result });
+      await fetchStatuses();
+    } catch (err) {
+      setSyncInfo({ ok: false, error: err.message || 'Sync failed' });
+    } finally {
+      setControlsLoading(prev => ({ ...prev, sync: false }));
+    }
+  };
+
   const handleStartQueue = async () => {
     setControlsLoading(prev => ({ ...prev, startQueue: true }));
     try {
@@ -208,11 +228,25 @@ export default function StatusBar() {
         className={`${statusInfo.color} text-white p-3 rounded-t-lg flex justify-between items-center cursor-pointer`}
         onClick={() => setIsExpanded(!isExpanded)}
       >
-        <div className="flex items-center">
+        <div className="flex items-center space-x-2">
           <div className={`w-3 h-3 rounded-full mr-2 ${queueStatus?.isPaused ? 'bg-amber-300 animate-pulse' : 'bg-green-300'}`}></div>
           <span className="font-medium">{statusInfo.message}</span>
+          {/* optional resume hint when compressed */}
+          {queueStatus?.isPaused && resumeTimeInfo && (
+            <span className="text-xs opacity-70">(resumes {resumeTimeInfo.relative})</span>
+          )}
         </div>
         <div className="flex items-center">
+          {/* --- Sync button lives in the top bar for global visibility --- */}
+          <button
+            className="btn btn-xs bg-blue-700 hover:bg-blue-800 disabled:bg-gray-600"
+            onClick={e => { e.stopPropagation(); handleSync(); }}
+            disabled={controlsLoading.sync}
+            title="Download any videos that finished while the app was offline"
+          >
+            {controlsLoading.sync ? 'Syncing…' : 'Sync Videos'}
+          </button>
+
           {queueStatus?.isPaused && resumeTimeInfo && (
             <span className="text-xs mr-4">
               Resumes: {resumeTimeInfo.formatted}
@@ -296,4 +330,16 @@ export default function StatusBar() {
       )}
     </div>
   );
+      {syncInfo && (
+        <div className={`p-3 text-sm rounded-b-lg ${
+          syncInfo.ok ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'
+        }`}>
+          {syncInfo.ok ? (
+            <>Sync complete. Downloaded {syncInfo.synced} new video(s).</>
+          ) : (
+            <>Sync failed: {syncInfo.error}</>
+          )}
+        </div>
+      )}
+
 }
