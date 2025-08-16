@@ -26,7 +26,11 @@ export default function App() {
           <div className="flex space-x-4 px-6">
             {plan.scenes.map(s => (
               <div key={s.id} className="space-y-3">
-                <SceneCard scene={s} onUpdate={updateScene} />
+                <SceneCard
+                  scene={s}
+                  overallConcept={plan.description}
+                  onUpdate={updateScene}
+                />
                 <ShotList scene={s} />
               </div>
             ))}
