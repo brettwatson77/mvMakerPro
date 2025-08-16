@@ -8,3 +8,9 @@ export const submit = (payload) => API.post('/veo/submit', payload).then(r => r.
 export const fetchJob = (id) => API.post('/veo/fetch', { id }).then(r => r.data);
 export const listJobs = () => API.get('/veo/jobs').then(r => r.data);
 export const remove = (id) => API.delete(`/veo/jobs/${id}`).then(r => r.data);
+
+// ---------------------------------------------------------------------------
+// Queue status (for global StatusBar)
+// ---------------------------------------------------------------------------
+export const getQueueStatus = () =>
+  API.get('/veo/queue/status').then(r => r.data);

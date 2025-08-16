@@ -39,8 +39,13 @@ export async function submitShots({ shots, model = 'preview', aspectRatio = '16:
         title: shot.title,
         error: err?.message || err
       });
-      // skip this shot, continue with others
-      continue;
+      /* -----------------------------------------------------------
+         Re-throw the error so the caller (queue processor) knows
+         the submission failed. This allows the queue to keep the
+         shot and retry on the next cycle instead of incorrectly
+         marking it as successful.
+      ----------------------------------------------------------- */
+      throw err;
     }
 
     // record job in DB only after successful submission
@@ -120,4 +125,93 @@ export function getPendingJobs() {
   return db.prepare(`SELECT j.id, j.op_name
                      FROM jobs j
                      WHERE j.status = 'PENDING'`).all();
+}
+
+/**
+ * Synchronise any remotely-generated Veo videos that are still available
+ * in the Google files endpoint but are missing locally.
+ *
+ * 1.   Lists all files via REST `files` endpoint
+ * 2.   Filters for video mime-types
+ * 3.   Compares with local DB `jobs` table (file_path column)
+ * 4.   Downloads any missing videos, stores to VIDEO_DIR, inserts a new
+ *      job row with status = 'SYNCED'
+ * 5.   Returns a summary
+ */
+export async function syncMissedVideos() {
+  const base = 'https://generativelanguage.googleapis.com/v1beta';
+  const apiKey = process.env.GEMINI_API_KEY;
+  if (!apiKey) throw new Error('GEMINI_API_KEY env var is required');
+
+  /* 1. List ALL files (pagination) */
+  let nextToken = null;
+  const remoteVideos = [];
+  do {
+    const url =
+      `${base}/files?pageSize=100` +
+      (nextToken ? `&pageToken=${encodeURIComponent(nextToken)}` : '');
+    const { data } = await axios.get(url, {
+      headers: { 'x-goog-api-key': apiKey }
+    });
+    if (data.files) {
+      data.files
+        .filter((f) => /^video\//.test(f.mimeType))
+        .forEach((v) => remoteVideos.push(v));
+    }
+    nextToken = data.nextPageToken;
+  } while (nextToken);
+
+  /* 2. Determine which we already have */
+  const db = getDb();
+  const existing = db
+    .prepare(`SELECT file_path FROM jobs WHERE file_path IS NOT NULL`)
+    .all()
+    .map((r) => path.basename(r.file_path)); // filenames only
+
+  const missing = remoteVideos.filter((v) => {
+    const fileId = v.name.split('/')[1]; // files/<id>
+    return !existing.includes(`${fileId}.mp4`) && !existing.includes(`${fileId}.bin`);
+  });
+
+  const insJob = db.prepare(
+    `INSERT INTO jobs(id, shot_id, op_name, status, created_at, file_path)
+     VALUES(?, NULL, NULL, 'SYNCED', ?, ?)`
+  );
+
+  let synced = 0;
+  const errors = [];
+
+  /* 3. Download each missing video */
+  for (const v of missing) {
+    const fileId = v.name.split('/')[1];
+    const ext = v.mimeType === 'video/mp4' ? '.mp4' : '.bin';
+    const localPath = path.join(VIDEO_DIR, `${fileId}${ext}`);
+    const publicUri = `${base}/${v.name}:download?alt=media&key=${apiKey}`;
+
+    try {
+      const response = await axios.get(publicUri, { responseType: 'stream' });
+      await new Promise((resolve, reject) => {
+        const w = fs.createWriteStream(localPath);
+        response.data.pipe(w);
+        w.on('finish', resolve);
+        w.on('error', reject);
+      });
+
+      // Record in DB
+      const jobId = uuidv4();
+      insJob.run(jobId, Date.now(), `/videos/${fileId}${ext}`);
+      synced++;
+      console.log(`[sync] ✔ downloaded ${fileId}${ext}`);
+    } catch (err) {
+      console.error(`[sync] ✖ failed ${fileId}:`, err.message || err);
+      errors.push({ id: fileId, error: err.message || String(err) });
+    }
+  }
+
+  return {
+    remoteCount: remoteVideos.length,
+    alreadyHave: existing.length,
+    synced,
+    errors
+  };
 }

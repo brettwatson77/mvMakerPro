@@ -1,6 +1,20 @@
 import React, { useState } from 'react'
 import { enhance } from '../lib/api'
 
+/**
+ * SceneCard
+ *
+ * NOTE:
+ * This component is now wrapped in a fixed-width, flex-shrink container so that
+ * parent layouts can place multiple <SceneCard> elements inside a horizontal
+ * flexbox with `overflow-x-auto`.  Each card therefore behaves like an
+ * “inline-slide” in a horizontally scrolling carousel.
+ *
+ * The parent (e.g. Scene list) should add:
+ *   <div className="flex overflow-x-auto space-x-4">
+ *      {scenes.map(s => <SceneCard key={s.id} … />)}
+ *   </div>
+ */
 export default function SceneCard({ scene, onUpdate }) {
   const [concept, setConcept] = useState(scene.concept)
   const [busy, setBusy] = useState(false)
@@ -20,7 +34,14 @@ export default function SceneCard({ scene, onUpdate }) {
   }
 
   return (
-    <div className="card space-y-2">
+    /* ------------------------------------------------------------------
+       flex-shrink-0 ensures the card keeps its width when placed in a
+       horizontal flex container.  w-80 (~20rem) gives a consistent card
+       width; adjust if design changes.  The inner `.card` retains visual
+       styling.
+    ------------------------------------------------------------------ */
+    <div className="flex-shrink-0 w-80">
+      <div className="card space-y-2">
       <div className="flex items-baseline justify-between">
         <h3 className="text-xl font-semibold">{scene.title}</h3>
         <span className="text-sm text-zinc-400">{scene.start_sec ?? scene.start}–{scene.end_sec ?? scene.end}s</span>
@@ -43,6 +64,7 @@ export default function SceneCard({ scene, onUpdate }) {
         >
           Generate All
         </button>
+      </div>
       </div>
     </div>
   )

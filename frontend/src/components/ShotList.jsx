@@ -5,6 +5,7 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
   function Shot({ sh }) {
     const [prompt, setPrompt] = useState(sh.prompt || '')
     const [busy, setBusy] = useState(false)
+    const [isQueued, setIsQueued] = useState(false)   // 👉 immediate UI feedback
 
     /* keep local prompt state in sync if parent updates sh.prompt */
     React.useEffect(() => {
@@ -17,6 +18,7 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
         // minimal payload: reuse existing submit route signature
         await submit({ shots: [{ id: sh.id, title: sh.title, prompt }] })
         onGenerate()                // notify parent to refresh queue
+        setIsQueued(true)           // mark as queued
       } finally {
         setBusy(false)
       }
@@ -41,8 +43,12 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
               onChange={e => setPrompt(e.target.value)}
             />
             <div className="flex gap-2">
-              <button className="btn flex-1" onClick={doGenerate} disabled={busy}>
-                {busy ? 'Generating…' : 'Generate'}
+              <button
+                className="btn flex-1"
+                onClick={doGenerate}
+                disabled={busy || isQueued}
+              >
+                {isQueued ? 'Queued' : busy ? 'Generating…' : 'Generate'}
               </button>
               <button className="btn flex-1 opacity-60 cursor-not-allowed" disabled>
                 Save

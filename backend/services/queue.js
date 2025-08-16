@@ -6,6 +6,7 @@
  * to avoid rate limiting (429 Too Many Requests errors).
  */
 import { submitShots } from './veo3.js';
+import { zonedTimeToUtc } from 'date-fns-tz';
 
 // In-memory queue for storing shots waiting to be processed
 const queue = [];
@@ -15,6 +16,31 @@ const QUEUE_INTERVAL = 120 * 1000;
 
 // Flag to track if the queue is currently being processed
 let isProcessing = false;
+
+// Pausing state (for daily quota reset handling)
+let isPaused = false;
+let pausedUntil = null; // Date | null
+
+/**
+ * Calculate next resume time = tomorrow 18:30 (6 :30 PM) Sydney
+ * (Australia/Sydney). Convert to UTC so setInterval comparisons are
+ * simple with `Date.now()`.
+ */
+function calculateNextResume() {
+  const tz = 'Australia/Sydney';
+  const nowSydney = zonedTimeToUtc(new Date(), tz); // utc now
+  const resumeSydney = new Date(nowSydney);
+  // Move to next day
+  resumeSydney.setUTCDate(resumeSydney.getUTCDate() + 1);
+  // Set 18:30 Sydney time (UTC offset may change with DST)
+  resumeSydney.setUTCHours(8, 30, 0, 0); // 18:30 AEST = 08:30 UTC, AEDT = 07:30 UTC
+  // Quick correction for DST (if offset is 11 hours AEDT):
+  const offsetHours = resumeSydney.getTimezoneOffset() / -60; // negative east
+  if (offsetHours === -11) {
+    resumeSydney.setUTCHours(7, 30, 0, 0);
+  }
+  return resumeSydney;
+}
 
 /**
  * Add a shot to the processing queue
@@ -71,12 +97,23 @@ async function processNextInQueue() {
     console.log(`[queue] ✅ Shot "${shot.title}" submitted successfully. ${queue.length} shots remaining in queue.`);
   } catch (error) {
     console.error(`[queue] ❌ Error processing shot:`, error.message || error);
-    
-    // If there was an error, we might want to remove the problematic shot
-    // to prevent the queue from getting stuck
-    if (queue.length > 0) {
-      const failedShot = queue.shift();
-      console.log(`[queue] ⚠️ Removed failed shot "${failedShot.title}" from queue to prevent blockage`);
+    const status = error?.response?.status;
+
+    if (status === 429) {
+      // Rate-limited – keep the shot in queue for automatic retry
+      console.warn('[queue] ⚠️ Rate limited (429). Shot will remain in queue and be retried on next cycle.');
+      // Enter paused state until next daily reset
+      isPaused = true;
+      pausedUntil = calculateNextResume();
+      console.warn(`[queue] ⏸ Queue paused until ${pausedUntil.toISOString()} (next quota reset)`);
+    } else {
+      // Unknown / fatal error – remove shot to prevent queue lock-up
+      if (queue.length > 0) {
+        const failedShot = queue.shift();
+        console.log(
+          `[queue] ⚠️ Removed failed shot "${failedShot.title}" from queue due to unrecoverable error`
+        );
+      }
     }
   } finally {
     // Reset processing flag
@@ -98,6 +135,17 @@ export function start() {
   
   // Then set up the interval for subsequent processing
   const intervalId = setInterval(() => {
+    // Check pause window
+    if (isPaused) {
+      if (pausedUntil && Date.now() >= pausedUntil.getTime()) {
+        console.log('[queue] ▶️  Pause window finished, resuming queue.');
+        isPaused = false;
+        pausedUntil = null;
+      } else {
+        console.log('[queue] ⏸ Queue is paused due to rate limit. Skipping this cycle.');
+        return;
+      }
+    }
     console.log('[queue] ⏰ Queue processor waking up...');
     processNextInQueue().catch(err => 
       console.error('[queue] Error in interval queue processing:', err)
@@ -115,6 +163,8 @@ export function getQueueStatus() {
   return {
     length: queue.length,
     isProcessing,
+    isPaused,
+    pausedUntil: pausedUntil ? pausedUntil.toISOString() : null,
     nextItem: queue.length > 0 ? {
       id: queue[0].id,
       title: queue[0].title

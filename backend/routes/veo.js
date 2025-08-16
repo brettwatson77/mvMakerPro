@@ -1,6 +1,6 @@
 import { Router } from 'express';
-import { getJobs, deleteJob } from '../services/veo3.js';
-import { addShotToQueue } from '../services/queue.js';
+import { getJobs, deleteJob, syncMissedVideos } from '../services/veo3.js';
+import { addShotToQueue, getQueueStatus } from '../services/queue.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -23,6 +23,33 @@ router.post('/submit', async (req, res) => {
     res.json({ success: true, queued });
   } catch (e) {
     res.status(400).json({ error: e.message });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /queue/status – return current queue status (length, paused, etc.)
+// ---------------------------------------------------------------------------
+router.get('/queue/status', (_req, res) => {
+  try {
+    const status = getQueueStatus();
+    res.json({ ok: true, status });
+  } catch (e) {
+    console.error('[GET /queue/status] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /sync  – trigger a background sync to download any videos that exist
+//              in the Google files endpoint but are missing locally
+// ---------------------------------------------------------------------------
+router.post('/sync', async (_req, res) => {
+  try {
+    const result = await syncMissedVideos();
+    res.json({ ok: true, ...result });
+  } catch (e) {
+    console.error('[POST /sync] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
   }
 });
 
