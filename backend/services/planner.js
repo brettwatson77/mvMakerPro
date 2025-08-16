@@ -133,41 +133,54 @@ export function getPlan(planId) {
   return { id: plan.id, description: plan.description, songLengthSec: plan.song_length_sec, aspectRatio: plan.aspect_ratio, scenes };
 }
 
-export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic' }) {
+/**
+ * Enhanced scene generation with full context awareness.
+ * Takes the overall video concept, scene concept, and shot list to create
+ * context-rich prompts for each shot that maintain consistency.
+ * 
+ * @param {Object} params - The parameters object
+ * @param {string} params.overallConcept - The overall video concept
+ * @param {string} params.sceneId - The ID of the scene being enhanced
+ * @param {string} params.concept - The scene concept
+ * @param {Array} params.shots - The list of shots in the scene
+ * @param {string} params.dial - The cinematic style dial setting (default: 'cinematic')
+ * @returns {Object} - The enhanced scene with context-rich shot prompts
+ */
+export async function enhanceWithContext({ overallConcept, sceneId, concept, shots, dial = 'cinematic' }) {
   /* ──────────────────────────────────────────────────────────
-     Use GPT-4o for stricter JSON compliance & richer DoP detail
+     Use GPT-4o for context-aware prompts with rich cinematography
   ────────────────────────────────────────────────────────── */
   const sys = [
     // -----------------------------------------------------------------------
-    // ACT AS DIRECTOR OF PHOTOGRAPHY
+    // ACT AS DIRECTOR OF PHOTOGRAPHY WITH FULL CONTEXT AWARENESS
     // -----------------------------------------------------------------------
-    'You are an award-winning Director of Photography and colourist.',
-    'Your task is to turn a simple scene description and its rough shot list',
-    'into production-ready, CINEMATIC instructions suitable for an AI video',
-    'model (Google Veo-3).',
+    'You are an award-winning Director of Photography and cinematic storyteller.',
+    'Your task is to create CONTEXT-RICH, CONSISTENT prompts for each shot in a music video scene.',
+    'These prompts will be sent to Google Veo-3 AI video generation model.',
     '',
-    'STEP 1  →  Write a SHORT “sceneContext” sentence (≤ 30 words) that names',
-    '          the main characters / creatures, describes the location, era,',
-    '          tone, and colour palette.   This is prepended to every shot.',
+    'STEP 1 → Create a "masterStyle" paragraph that defines the CONSISTENT visual language for ALL shots:',
+    '        • Camera style (handheld, steadicam, locked-off)',
+    '        • Lens characteristics (wide, telephoto, anamorphic)',
+    '        • Lighting approach (high-key, low-key, practical sources)',
+    '        • Color palette and grade (warm, cool, desaturated)',
+    '        • Visual references (e.g., "Wes Anderson symmetry" or "Fincher noir")',
     '',
-    'STEP 2  →  For EACH incoming shot produce:',
-    '  • action  → multi-line detailed description of what happens on-screen,',
-    '               including framing and performer behaviour.',
-    '  • prompt  → single paragraph text prompt for Veo: must combine',
-    '               sceneContext + technical detail:',
-    '               ‑ camera movement (crane, dolly, handheld …)',
-    '               ‑ lens & focal length (e.g. 35 mm anamorphic, macro)',
-    '               ‑ film stock / digital sensor & colour grade',
-    '               ‑ lighting design (e.g. neon rim-light, Rembrandt key)',
-    '               ‑ desired atmosphere adjectives.',
-    '  • style   → OPTIONAL { key: value } extras such as LUT, shutter-angle.',
+    'STEP 2 → For EACH shot, create a context-rich prompt that COMBINES:',
+    '        1. A brief summary of the overall video concept (1-2 sentences)',
+    '        2. A summary of this specific scene\'s role in the story (1 sentence)',
+    '        3. The specific action happening in this shot (detailed)',
+    '        4. Technical cinematography details from the masterStyle',
     '',
-    'STRICT OUTPUT  (NO markdown, NO commentary, NO extra keys):',
+    'CRITICAL: Each shot prompt MUST maintain character consistency, location continuity,',
+    'and visual style across the entire scene. Every prompt should feel like part of the',
+    'same cohesive world and narrative.',
+    '',
+    'STRICT OUTPUT FORMAT (NO markdown, NO commentary, NO extra keys):',
     '{',
-    '  "sceneContext": "<string>",',
+    '  "masterStyle": "<paragraph describing consistent visual approach>",',
     '  "shots": [',
-    '     { "action": "<string>", "prompt": "<string>", "style": { … } },',
-    '     { "action": "...",        "prompt": "...",        "style": null }',
+    '     { "id": "<original shot id>", "action": "<detailed action>", "prompt": "<context-rich prompt>" },',
+    '     { "id": "...", "action": "...", "prompt": "..." }',
     '  ]',
     '}'
   ].join(' ');
@@ -179,7 +192,12 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
       { role: 'system', content: sys },
       {
         role: 'user',
-        content: JSON.stringify({ concept, shots, dial })
+        content: JSON.stringify({ 
+          overallConcept,
+          concept, 
+          shots,
+          dial
+        })
       }
     ]
   });
@@ -192,28 +210,23 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
   try {
     out = JSON.parse(txt);
   } catch (e) {
-    console.error('[enhanceScene] JSON parse failed. Raw text:', txt);
+    console.error('[enhanceWithContext] JSON parse failed. Raw text:', txt);
     throw new Error('Enhancer returned invalid JSON');
   }
 
   const db = getDb();
   const upScene = db.prepare(`UPDATE scenes SET concept = ?, context = ? WHERE id = ?`);
-  const upShot = db.prepare(`UPDATE shots SET action = ?, style_json = ?, prompt = ? WHERE id = ?`);
+  const upShot = db.prepare(`UPDATE shots SET action = ?, prompt = ? WHERE id = ?`);
 
-  const sceneCtx = (out.sceneContext || '').trim();
+  const masterStyle = (out.masterStyle || '').trim();
 
   const tx = db.transaction(() => {
-    upScene.run(concept, sceneCtx, sceneId);
-    for (let i = 0; i < out.shots.length; i++) {
-      const s = out.shots[i];
-      const original = shots[i]; // same ordering from UI
-      const basePrompt = s.prompt || '';
-      const finalPrompt = `${sceneCtx ? sceneCtx + ' ' : ''}${basePrompt}`.trim();
+    upScene.run(concept, masterStyle, sceneId);
+    for (const shot of out.shots) {
       upShot.run(
-        s.action,
-        s.style ? JSON.stringify(s.style) : null,
-        finalPrompt,
-        original.id
+        shot.action,
+        shot.prompt,
+        shot.id
       );
     }
   });
@@ -223,4 +236,30 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
   const newShots = db.prepare(`SELECT * FROM shots WHERE scene_id = ?`).all(sceneId);
   scene.shots = newShots;
   return scene;
+}
+
+/**
+ * Legacy enhance function - now a wrapper around enhanceWithContext
+ * Maintains backward compatibility with existing frontend
+ */
+export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic' }) {
+  // Get the overall concept from the database using the sceneId
+  const db = getDb();
+  const scene = db.prepare(`SELECT s.id, p.description AS overallConcept 
+                           FROM scenes s 
+                           JOIN plans p ON s.plan_id = p.id 
+                           WHERE s.id = ?`).get(sceneId);
+  
+  if (!scene) {
+    throw new Error(`Scene with ID ${sceneId} not found`);
+  }
+
+  // Call the new enhanceWithContext function with the overall concept
+  return enhanceWithContext({
+    overallConcept: scene.overallConcept,
+    sceneId,
+    concept,
+    shots,
+    dial
+  });
 }

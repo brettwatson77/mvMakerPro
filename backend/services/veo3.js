@@ -5,7 +5,8 @@ import axios from 'axios';
 import { getDb } from '../db/db.js';
 import { v4 as uuidv4 } from 'uuid';
 
-const OUT_DIR = path.resolve('backend/output');
+// Resolve correctly to   <repo-root>/backend/output
+const OUT_DIR = path.resolve(__dirname, '..', 'output');
 const VIDEO_DIR = path.join(OUT_DIR, 'videos');
 fs.mkdirSync(VIDEO_DIR, { recursive: true });
 
@@ -161,31 +162,37 @@ export async function syncMissedVideos() {
     nextToken = data.nextPageToken;
   } while (nextToken);
 
-  /* 2. Determine which we already have */
-  const db = getDb();
-  const existing = db
-    .prepare(`SELECT file_path FROM jobs WHERE file_path IS NOT NULL`)
-    .all()
-    .map((r) => path.basename(r.file_path)); // filenames only
+  /* 2. Prepare local sync folder
+   * ----------------------------------------------------------------
+   * Each sync run gets its own timestamped directory to avoid any
+   * filename-collision or overwrite issues.
+   * e.g.  output/videos/sync_2025-08-16_203000
+   * ---------------------------------------------------------------- */
+  const stamp = new Date()
+    .toISOString()
+    .replace(/[-:]/g, '')
+    .replace(/\..+/, '')               // YYYYMMDDTHHMMSS
+    .replace('T', '_');
+  const SYNC_DIR = path.join(VIDEO_DIR, `sync_${stamp}`);
+  fs.mkdirSync(SYNC_DIR, { recursive: true });
+
+  /* 3. Determine which remote videos we already downloaded during
+         **this specific sync run** (folder is empty on first run)    */
+  const existing = fs.readdirSync(SYNC_DIR);
 
   const missing = remoteVideos.filter((v) => {
     const fileId = v.name.split('/')[1]; // files/<id>
     return !existing.includes(`${fileId}.mp4`) && !existing.includes(`${fileId}.bin`);
   });
 
-  const insJob = db.prepare(
-    `INSERT INTO jobs(id, shot_id, op_name, status, created_at, file_path)
-     VALUES(?, NULL, NULL, 'SYNCED', ?, ?)`
-  );
-
   let synced = 0;
   const errors = [];
 
-  /* 3. Download each missing video */
+  /* 4. Download each missing video */
   for (const v of missing) {
     const fileId = v.name.split('/')[1];
     const ext = v.mimeType === 'video/mp4' ? '.mp4' : '.bin';
-    const localPath = path.join(VIDEO_DIR, `${fileId}${ext}`);
+    const localPath = path.join(SYNC_DIR, `${fileId}${ext}`);
     const publicUri = `${base}/${v.name}:download?alt=media&key=${apiKey}`;
 
     try {
@@ -196,10 +203,6 @@ export async function syncMissedVideos() {
         w.on('finish', resolve);
         w.on('error', reject);
       });
-
-      // Record in DB
-      const jobId = uuidv4();
-      insJob.run(jobId, Date.now(), `/videos/${fileId}${ext}`);
       synced++;
       console.log(`[sync] ✔ downloaded ${fileId}${ext}`);
     } catch (err) {

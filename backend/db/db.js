@@ -6,7 +6,16 @@ import { fileURLToPath } from 'url';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const dbPath = process.env.DB_PATH || path.resolve(__dirname, '../output/veo.sqlite');
+/* ------------------------------------------------------------------ 
+ * Ensure the database is always created in:
+ *   <repo-root>/backend/output/veo.sqlite
+ * Using explicit path segments avoids accidental nesting such as
+ * “backend/backend/output/…”.
+ * ------------------------------------------------------------------ */
+const dbPath =
+  process.env.DB_PATH ||
+  path.resolve(__dirname, '..', 'output', 'veo.sqlite');
+
 const schemaPath = path.resolve(__dirname, './schema.sql');
 
 export function getDb() {

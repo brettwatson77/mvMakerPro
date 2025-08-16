@@ -15,7 +15,7 @@ import { enhance } from '../lib/api'
  *      {scenes.map(s => <SceneCard key={s.id} … />)}
  *   </div>
  */
-export default function SceneCard({ scene, onUpdate }) {
+export default function SceneCard({ scene, overallConcept, onUpdate }) {
   const [concept, setConcept] = useState(scene.concept)
   const [busy, setBusy] = useState(false)
 
@@ -23,7 +23,12 @@ export default function SceneCard({ scene, onUpdate }) {
     setBusy(true)
     try {
       const baseShots = scene.shots.map(s => ({ id: s.id, title: s.title, action: s.action }))
-      const out = await enhance({ sceneId: scene.id, concept, shots: baseShots })
+      const out = await enhance({
+        overallConcept,
+        sceneId: scene.id,
+        concept,
+        shots: baseShots
+      })
       const merged = {
         ...scene,
         concept,
