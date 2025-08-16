@@ -328,12 +328,16 @@ export default function StatusBar() {
           <VeoQueue />
         </div>
       )}
-    </div>
-  );
+
+      {/* --- Sync result toast ----------------------------------------- */}
       {syncInfo && (
-        <div className={`p-3 text-sm rounded-b-lg ${
-          syncInfo.ok ? 'bg-green-900/60 text-green-300' : 'bg-red-900/60 text-red-300'
-        }`}>
+        <div
+          className={`mt-2 p-3 text-sm rounded-lg ${
+            syncInfo.ok
+              ? 'bg-green-900/60 text-green-300'
+              : 'bg-red-900/60 text-red-300'
+          }`}
+        >
           {syncInfo.ok ? (
             <>Sync complete. Downloaded {syncInfo.synced} new video(s).</>
           ) : (
@@ -341,5 +345,6 @@ export default function StatusBar() {
           )}
         </div>
       )}
-
+    </div>
+  );
 }
