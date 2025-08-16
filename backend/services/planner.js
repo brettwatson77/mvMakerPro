@@ -63,6 +63,7 @@ export async function planScenes({ description, songLengthSec, targetAspect = '1
     `Design a full storyboard for a ${minutes}-minute song *and* write production-ready prompts.`,
     '',
     'STRICT OUTPUT (NO markdown, NO commentary, NO code fences):',
+    'Return ONE valid JSON object that follows this exact schema:',
     '{ "scenes": [',
     '    { "id": "<uuid>", "title": "...", "concept": "<1-2 sentence scene summary>", "start": <sec>, "end": <sec>,',
     '      "shots": [',
