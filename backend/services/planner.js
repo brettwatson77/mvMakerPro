@@ -263,3 +263,24 @@ export async function enhanceScene({ sceneId, concept, shots, dial = 'cinematic'
     dial
   });
 }
+
+/**
+ * Persist a manually-edited prompt for an individual shot.
+ * Throws if the shot id does not exist.
+ *
+ * @param {Object} params
+ * @param {string} params.shotId  – UUID of the shot being edited
+ * @param {string} params.prompt  – The new prompt text
+ */
+export async function updateShotPrompt({ shotId, prompt }) {
+  const db = getDb();
+  const info = db
+    .prepare(`UPDATE shots SET prompt = ? WHERE id = ?`)
+    .run(prompt, shotId);
+
+  if (info.changes === 0) {
+    throw new Error(`Shot ${shotId} not found`);
+  }
+
+  return { shotId, prompt };
+}

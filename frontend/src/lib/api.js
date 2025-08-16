@@ -41,3 +41,9 @@ export const stopPoller = () =>
 
 export const getPollerStatus = () =>
   API.get('/veo/poller/status').then(r => r.data);
+
+// ---------------------------------------------------------------------------
+// Save a manually-edited prompt for a single shot
+// ---------------------------------------------------------------------------
+export const saveShot = (shotId, prompt) =>
+  API.patch(`/plan/shots/${shotId}`, { prompt }).then(r => r.data);

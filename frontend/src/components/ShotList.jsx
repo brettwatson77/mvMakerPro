@@ -6,6 +6,7 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
     const [prompt, setPrompt] = useState(sh.prompt || '')
     const [busy, setBusy] = useState(false)
     const [isQueued, setIsQueued] = useState(false)   // 👉 immediate UI feedback
+    const [saveBusy, setSaveBusy] = useState(false)    // saving state
 
     /* keep local prompt state in sync if parent updates sh.prompt */
     React.useEffect(() => {
@@ -21,6 +22,20 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
         setIsQueued(true)           // mark as queued
       } finally {
         setBusy(false)
+      }
+    }
+
+    /* ------------------------------------------------------------
+       Persist a manually-edited prompt for this shot
+    ------------------------------------------------------------ */
+    const doSave = async () => {
+      if (prompt.trim().length < 5) return
+      setSaveBusy(true)
+      try {
+        const { saveShot } = await import('../lib/api')
+        await saveShot(sh.id, prompt.trim())
+      } finally {
+        setSaveBusy(false)
       }
     }
 
@@ -50,8 +65,12 @@ export default function ShotList({ scene, onGenerate = () => {} }) {
               >
                 {isQueued ? 'Queued' : busy ? 'Generating…' : 'Generate'}
               </button>
-              <button className="btn flex-1 opacity-60 cursor-not-allowed" disabled>
-                Save
+              <button
+                className="btn flex-1"
+                onClick={doSave}
+                disabled={saveBusy}
+              >
+                {saveBusy ? 'Saving…' : 'Save'}
               </button>
             </div>
           </div>
