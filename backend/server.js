@@ -8,6 +8,7 @@ import { fileURLToPath } from 'url';
 import planRouter from './routes/plan.js';
 import veoRouter from './routes/veo.js';
 import { ensureSchema, getDb } from './db/db.js'; // ← ensure schema & access DB
+import { start as startQueue } from './services/queue.js';   // ← smart generation queue
 import { start as startPoller } from './services/poller.js'; // ← background job poller
 
 const __filename = fileURLToPath(import.meta.url);
@@ -73,5 +74,6 @@ app.get('/api/health/db', (req, res) => {
 const port = Number(process.env.PORT) || 3011;
 app.listen(port, () => {
   console.log(`[backend] listening on :${port}`);
-  startPoller(); // kick off background polling for Veo jobs
+  startQueue();   // kick off smart queue processor for Veo jobs
+  startPoller();  // kick off background poller to watch job status
 });

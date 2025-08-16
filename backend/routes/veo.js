@@ -1,5 +1,6 @@
 import { Router } from 'express';
-import { submitShots, pollAndDownload, getJobs, deleteJob } from '../services/veo3.js';
+import { getJobs, deleteJob } from '../services/veo3.js';
+import { addShotToQueue } from '../services/queue.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -15,19 +16,11 @@ router.post('/submit', async (req, res) => {
       negativePrompt: z.string().optional()
     });
     const body = schema.parse(req.body);
-    const result = await submitShots(body);
-    res.json(result);
-  } catch (e) {
-    res.status(400).json({ error: e.message });
-  }
-});
 
-router.post('/fetch', async (req, res) => {
-  try {
-    const schema = z.object({ id: z.string().uuid() });
-    const { id } = schema.parse(req.body);
-    const out = await pollAndDownload(id);
-    res.json(out);
+    /*  Queue each shot for generation (smart queue enforces 2-min gap) */
+    const queued = body.shots.map((sh) => addShotToQueue(sh));
+
+    res.json({ success: true, queued });
   } catch (e) {
     res.status(400).json({ error: e.message });
   }
