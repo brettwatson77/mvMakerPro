@@ -4,6 +4,11 @@ import path from 'path';
 import axios from 'axios';
 import { getDb } from '../db/db.js';
 import { v4 as uuidv4 } from 'uuid';
+// ES-module friendly __dirname / __filename helpers
+import { fileURLToPath } from 'url';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname  = path.dirname(__filename);
 
 // Resolve correctly to   <repo-root>/backend/output
 const OUT_DIR = path.resolve(__dirname, '..', 'output');
