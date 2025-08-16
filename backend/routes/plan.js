@@ -12,6 +12,11 @@ const router = Router();
 
 router.post('/', async (req, res) => {
   try {
+    // ---- trace -----------------------------------------------------------
+    // Log every incoming plan-scenes request to help diagnose front-end issues
+    console.log('[POST /plan] received plan-scenes request:', req.body);
+    // ----------------------------------------------------------------------
+
     const schema = z.object({
       description: z.string().min(10),
       songLengthSec: z.number().int().positive(),
