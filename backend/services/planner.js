@@ -42,25 +42,44 @@ export async function planScenes({ description, songLengthSec, targetAspect = '1
   const targetDurationSec = songLengthSec * USABILITY_FACTOR;
   const numShots = Math.round(targetDurationSec / AVG_SHOT_LEN_SEC);
   /*  ──────────────────────────────────────────────────────────
-      SYSTEM PROMPT – must force the model to emit ONLY JSON.
-      Any stray prose / markdown causes a 400 in the frontend.
+      SYSTEM PROMPT  –  new “all-in-one” planner.
+      The model must now act as BOTH
+        • Storyboard Artist  (splitting song into scenes / shots)
+        • Director of Photography (adding rich cinematic prompts)
+
+      It must still emit ONE JSON object:
+        scenes[]  →  shots[]  with { id, title, action, durationSec, prompt }
+
+      The prompt text MUST be “context-rich”:
+        1. 1-2-sentence summary of the overall video concept
+        2. 1-sentence summary of the scene’s role
+        3. Detailed shot description incl. camera, lens, lighting, style
+      This eliminates the need for a later “Refine Shots” step.
+
+      ABSOLUTELY NO TEXT OUTSIDE THE JSON.
      ────────────────────────────────────────────────────────── */
   const sys = [
-    'You are an award-winning music-video director and editor.',
-    `Create a complete shot-list that will fit within a ${minutes}-minute song.`,
+    'You are an award-winning Music-Video DIRECTOR and DIRECTOR OF PHOTOGRAPHY.',
+    `Design a full storyboard for a ${minutes}-minute song *and* write production-ready prompts.`,
     '',
-    'OUTPUT RULES (DO NOT BREAK):',
-    '• Respond with ONE single JSON object and nothing else – no code fences, no markdown, no commentary.',
-    '• The root object must have:  scenes  →  array.',
-    '• Each scene object: { id, title, start, end, shots }.',
-    '• start / end are seconds (number).',
-    '• shots is an array of shot objects.',
-    '• Each shot: { id, title, action, durationSec }.',
-    '• id fields must be uuid-like strings (or leave blank, client will fill).',
-    '• durationSec defaults to 8 if you omit it.',
-    `• Aim for roughly ${numShots} shots in total.`,
+    'STRICT OUTPUT (NO markdown, NO commentary, NO code fences):',
+    '{ "scenes": [',
+    '    { "id": "<uuid>", "title": "...", "start": <sec>, "end": <sec>,',
+    '      "shots": [',
+    '        { "id": "<uuid>", "title": "...", "action": "...", "durationSec": 8,',
+    '          "prompt": "<CONTEXT-RICH CINEMATIC PROMPT>" }',
+    '      ]',
+    '    }',
+    '  ]',
+    '}',
     '',
-    'ABSOLUTELY NO OTHER FIELDS.  ABSOLUTELY NO TEXT OUTSIDE THE JSON.',
+    'SHOT PROMPT RULES:',
+    '• Begin with 1-2 sentences summarising the OVERALL video concept.',
+    '• Add 1 sentence explaining THIS SCENE’S purpose in the story.',
+    '• Follow with detailed shot description: subject action, camera move, lens (e.g. 35 mm anamorphic), lighting scheme, colour grade, mood adjectives.',
+    '• Maintain character, setting & visual style consistency across shots.',
+    '',
+    `Generate ~${numShots} total shots.  NO EXTRA FIELDS.`,
   ].join(' ');
 
   const response = await openai.chat.completions.create({

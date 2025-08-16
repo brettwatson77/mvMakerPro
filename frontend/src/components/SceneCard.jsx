@@ -19,7 +19,8 @@ export default function SceneCard({ scene, overallConcept, onUpdate }) {
   const [concept, setConcept] = useState(scene.concept)
   const [busy, setBusy] = useState(false)
 
-  const doEnhance = async () => {
+  /* Regenerate full set of context-rich prompts for this scene */
+  const doRegenerate = async () => {
     setBusy(true)
     try {
       const baseShots = scene.shots.map(s => ({ id: s.id, title: s.title, action: s.action }))
@@ -57,19 +58,10 @@ export default function SceneCard({ scene, overallConcept, onUpdate }) {
       <div className="flex gap-3">
         <button
           className="btn flex-1"
-          onClick={doEnhance}
+          onClick={doRegenerate}
           disabled={busy}
         >
-          {busy ? 'Enhancing…' : 'Refine Shots'}
-        </button>
-
-        {/* Placeholder for future scene-level generation – disabled until backend route is wired */}
-        <button
-          className="btn flex-1 opacity-60 cursor-not-allowed"
-          disabled
-          title="Coming soon"
-        >
-          Generate All
+          {busy ? 'Regenerating…' : 'Regenerate Shots'}
         </button>
       </div>
       </div>
