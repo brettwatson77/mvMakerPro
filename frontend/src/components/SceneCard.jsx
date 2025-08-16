@@ -34,7 +34,9 @@ export default function SceneCard({ scene, overallConcept, onUpdate }) {
         concept,
         shots: out.shots
       }
-      onUpdate(merged)
+      /* Pass the fully-updated scene coming back from the API so the
+         parent state contains the latest context-rich prompts. */
+      onUpdate(out)
     } finally { setBusy(false) }
   }
 

@@ -15,7 +15,7 @@ export default function App() {
     <div className="w-full">
       {/* -------- Center-constrained content -------- */}
       <div className="max-w-6xl mx-auto p-6 space-y-6">
-        <h1 className="text-2xl font-semibold">Veo3 Scene Planner</h1>
+        <h1 className="text-2xl font-semibold">mvMakerPro</h1>
         <StatusBar />
         <ScenePlanner onPlan={setPlan} />
       </div>
