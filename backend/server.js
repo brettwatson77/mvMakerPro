@@ -8,8 +8,6 @@ import { fileURLToPath } from 'url';
 import planRouter from './routes/plan.js';
 import veoRouter from './routes/veo.js';
 import { ensureSchema, getDb } from './db/db.js'; // ← ensure schema & access DB
-import { start as startQueue } from './services/queue.js';   // ← smart generation queue
-import { start as startPoller } from './services/poller.js'; // ← background job poller
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -74,6 +72,8 @@ app.get('/api/health/db', (req, res) => {
 const port = Number(process.env.PORT) || 3011;
 app.listen(port, () => {
   console.log(`[backend] listening on :${port}`);
-  startQueue();   // kick off smart queue processor for Veo jobs
-  startPoller();  // kick off background poller to watch job status
+  // NOTE:
+  // Queue processor and poller now start in *paused* mode.
+  // Users must explicitly start them via the new manual-control API
+  // endpoints (/api/veo/queue/start, /api/veo/queue/stop, etc.).
 });

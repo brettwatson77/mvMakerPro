@@ -16,6 +16,9 @@ const QUEUE_INTERVAL = 120 * 1000;
 
 // Flag to track if the queue is currently being processed
 let isProcessing = false;
+// Flag to track if the queue processor interval is running
+let isActive = false;
+let intervalId = null; // handle returned by setInterval
 
 // Pausing state (for daily quota reset handling)
 let isPaused = false;
@@ -163,6 +166,7 @@ export function getQueueStatus() {
   return {
     length: queue.length,
     isProcessing,
+    isActive,
     isPaused,
     pausedUntil: pausedUntil ? pausedUntil.toISOString() : null,
     nextItem: queue.length > 0 ? {
@@ -170,4 +174,64 @@ export function getQueueStatus() {
       title: queue[0].title
     } : null
   };
+}
+
+/* ------------------------------------------------------------------ */
+/* Manual control: start / stop                                       */
+/* ------------------------------------------------------------------ */
+
+/**
+ * Start the queue processor (manual).
+ * Does nothing if already running.
+ */
+export function startQueue() {
+  if (isActive) {
+    console.log('[queue] start requested but queue processor is already running');
+    return intervalId;
+  }
+
+  console.log(`[queue] ▶️ Starting queue processor. Processing interval: ${QUEUE_INTERVAL/1000} seconds`);
+
+  // Process queue immediately once on start
+  processNextInQueue().catch(err =>
+    console.error('[queue] Error in initial queue processing:', err)
+  );
+
+  // Then set up the interval for subsequent processing
+  intervalId = setInterval(() => {
+    // Check pause window
+    if (isPaused) {
+      if (pausedUntil && Date.now() >= pausedUntil.getTime()) {
+        console.log('[queue] ▶️  Pause window finished, resuming queue.');
+        isPaused = false;
+        pausedUntil = null;
+      } else {
+        console.log('[queue] ⏸ Queue is paused due to rate limit. Skipping this cycle.');
+        return;
+      }
+    }
+    console.log('[queue] ⏰ Queue processor waking up...');
+    processNextInQueue().catch(err =>
+      console.error('[queue] Error in interval queue processing:', err)
+    );
+  }, QUEUE_INTERVAL);
+
+  isActive = true;
+  return intervalId;
+}
+
+/**
+ * Stop the queue processor (manual).
+ * Clears the interval and marks queue as inactive.
+ */
+export function stopQueue() {
+  if (!isActive || intervalId === null) {
+    console.log('[queue] stop requested but queue processor is not running');
+    return;
+  }
+
+  clearInterval(intervalId);
+  intervalId = null;
+  isActive = false;
+  console.log('[queue] ⏸ Queue processor stopped');
 }

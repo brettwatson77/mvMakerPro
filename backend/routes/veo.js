@@ -1,6 +1,16 @@
 import { Router } from 'express';
 import { getJobs, deleteJob, syncMissedVideos } from '../services/veo3.js';
-import { addShotToQueue, getQueueStatus } from '../services/queue.js';
+import {
+  addShotToQueue,
+  getQueueStatus,
+  startQueue,
+  stopQueue
+} from '../services/queue.js';
+import {
+  startPoller,
+  stopPoller,
+  getPollerStatus
+} from '../services/poller.js';
 import { z } from 'zod';
 
 const router = Router();
@@ -49,6 +59,71 @@ router.post('/sync', async (_req, res) => {
     res.json({ ok: true, ...result });
   } catch (e) {
     console.error('[POST /sync] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /queue/start – manually start the submission queue processor
+// ---------------------------------------------------------------------------
+router.post('/queue/start', (_req, res) => {
+  try {
+    startQueue();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[POST /queue/start] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /queue/stop – manually stop the submission queue processor
+// ---------------------------------------------------------------------------
+router.post('/queue/stop', (_req, res) => {
+  try {
+    stopQueue();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[POST /queue/stop] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /poller/start – manually start the background poller
+// ---------------------------------------------------------------------------
+router.post('/poller/start', (_req, res) => {
+  try {
+    startPoller();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[POST /poller/start] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// POST /poller/stop – manually stop the background poller
+// ---------------------------------------------------------------------------
+router.post('/poller/stop', (_req, res) => {
+  try {
+    stopPoller();
+    res.json({ ok: true });
+  } catch (e) {
+    console.error('[POST /poller/stop] error:', e);
+    res.status(500).json({ ok: false, error: e.message || 'internal error' });
+  }
+});
+
+// ---------------------------------------------------------------------------
+// GET /poller/status – return whether the poller is active
+// ---------------------------------------------------------------------------
+router.get('/poller/status', (_req, res) => {
+  try {
+    const status = getPollerStatus();
+    res.json({ ok: true, status });
+  } catch (e) {
+    console.error('[GET /poller/status] error:', e);
     res.status(500).json({ ok: false, error: e.message || 'internal error' });
   }
 });

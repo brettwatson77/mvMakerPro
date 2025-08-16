@@ -38,6 +38,12 @@ async function poll() {
 const MAX_RETRIES = 5;
 const BASE_DELAY = 30_000; // 30 seconds
 
+/* ------------------------------------------------------------------ */
+/* Poller runtime state                                               */
+/* ------------------------------------------------------------------ */
+let isActive = false;      // whether the poller is currently running
+let intervalId = null;     // holds the setInterval handle
+
 function processJob(job, retries = 0) {
   console.log(`[poller] processing job ${job.id} (operation: ${job.op_name}) [try #${retries + 1}]`);
 
@@ -59,19 +65,48 @@ function processJob(job, retries = 0) {
 }
 
 /**
- * Start the background poller.
- * This function should be called when the server starts.
+ * Start the background poller (manual control).
+ * Does nothing if the poller is already running.
  */
-export function start() {
-  console.log('[poller] starting background job poller (150s interval)');
-  
-  // Run the poller immediately once
+export function startPoller() {
+  if (isActive) {
+    console.log('[poller] start requested but poller is already active');
+    return intervalId;
+  }
+
+  console.log('[poller] ▶️ starting background job poller (150s interval)');
+
+  // Run once immediately
   poll().catch(err => console.error('[poller] initial poll error:', err));
-  
-  // Then set up the interval for subsequent polls
-  const intervalId = setInterval(() => {
+
+  // Schedule subsequent polls
+  intervalId = setInterval(() => {
     poll().catch(err => console.error('[poller] interval poll error:', err));
-  }, 150000); // 150 seconds (2.5 minutes)
-  
-  return intervalId; // Return the interval ID in case we need to stop it later
+  }, 150_000); // 150 seconds (2.5 minutes)
+
+  isActive = true;
+  return intervalId;
+}
+
+/**
+ * Stop the background poller.
+ * Clears the interval and marks the poller as inactive.
+ */
+export function stopPoller() {
+  if (!isActive || intervalId === null) {
+    console.log('[poller] stop requested but poller is not active');
+    return;
+  }
+
+  clearInterval(intervalId);
+  intervalId = null;
+  isActive = false;
+  console.log('[poller] ⏸ poller stopped');
+}
+
+/**
+ * Get current poller status (active / inactive).
+ */
+export function getPollerStatus() {
+  return { isActive };
 }

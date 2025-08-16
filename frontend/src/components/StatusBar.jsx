@@ -1,7 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { format, formatDistanceToNow } from 'date-fns';
 import VeoQueue from './VeoQueue';
-import { getQueueStatus } from '../lib/api';
+import { 
+  getQueueStatus, 
+  getPollerStatus,
+  startQueue,
+  stopQueue,
+  startPoller,
+  stopPoller
+} from '../lib/api';
 
 /**
  * StatusBar component
@@ -10,20 +17,28 @@ import { getQueueStatus } from '../lib/api';
  * - Whether the queue is active or paused due to rate limits
  * - When the queue will resume if paused
  * - Current queue length
+ * - Manual controls for starting/stopping queue and poller
  * - Collapsible section containing the full VeoQueue component
  */
 export default function StatusBar() {
-  const [status, setStatus] = useState(null);
+  const [queueStatus, setQueueStatus] = useState(null);
+  const [pollerStatus, setPollerStatus] = useState(null);
   const [isExpanded, setIsExpanded] = useState(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [controlsLoading, setControlsLoading] = useState({
+    startQueue: false,
+    stopQueue: false,
+    startPoller: false,
+    stopPoller: false
+  });
 
   // Format the time until queue resumes in a friendly way
   const getResumeTimeInfo = () => {
-    if (!status?.isPaused || !status?.pausedUntil) return null;
+    if (!queueStatus?.isPaused || !queueStatus?.pausedUntil) return null;
     
     try {
-      const resumeDate = new Date(status.pausedUntil);
+      const resumeDate = new Date(queueStatus.pausedUntil);
       return {
         formatted: format(resumeDate, 'MMM d, h:mm a'),
         relative: formatDistanceToNow(resumeDate, { addSuffix: true })
@@ -34,30 +49,87 @@ export default function StatusBar() {
     }
   };
 
-  // Fetch queue status on component mount and every 5 seconds
-  useEffect(() => {
-    const fetchStatus = async () => {
-      try {
-        setLoading(true);
-        const response = await getQueueStatus();
-        if (response.ok && response.status) {
-          setStatus(response.status);
-          setError(null);
-        } else {
-          setError('Failed to fetch queue status');
-        }
-      } catch (err) {
-        setError(err.message || 'Failed to fetch queue status');
-      } finally {
-        setLoading(false);
+  // Fetch queue and poller status
+  const fetchStatuses = async () => {
+    try {
+      setLoading(true);
+      
+      // Fetch queue status
+      const queueResponse = await getQueueStatus();
+      if (queueResponse.ok && queueResponse.status) {
+        setQueueStatus(queueResponse.status);
       }
-    };
+      
+      // Fetch poller status
+      const pollerResponse = await getPollerStatus();
+      if (pollerResponse.ok && pollerResponse.status) {
+        setPollerStatus(pollerResponse.status);
+      }
+      
+      setError(null);
+    } catch (err) {
+      setError(err.message || 'Failed to fetch system status');
+    } finally {
+      setLoading(false);
+    }
+  };
 
+  // Control handlers
+  const handleStartQueue = async () => {
+    setControlsLoading(prev => ({ ...prev, startQueue: true }));
+    try {
+      await startQueue();
+      await fetchStatuses();
+    } catch (err) {
+      setError(`Failed to start queue: ${err.message}`);
+    } finally {
+      setControlsLoading(prev => ({ ...prev, startQueue: false }));
+    }
+  };
+
+  const handleStopQueue = async () => {
+    setControlsLoading(prev => ({ ...prev, stopQueue: true }));
+    try {
+      await stopQueue();
+      await fetchStatuses();
+    } catch (err) {
+      setError(`Failed to stop queue: ${err.message}`);
+    } finally {
+      setControlsLoading(prev => ({ ...prev, stopQueue: false }));
+    }
+  };
+
+  const handleStartPoller = async () => {
+    setControlsLoading(prev => ({ ...prev, startPoller: true }));
+    try {
+      await startPoller();
+      await fetchStatuses();
+    } catch (err) {
+      setError(`Failed to start poller: ${err.message}`);
+    } finally {
+      setControlsLoading(prev => ({ ...prev, startPoller: false }));
+    }
+  };
+
+  const handleStopPoller = async () => {
+    setControlsLoading(prev => ({ ...prev, stopPoller: true }));
+    try {
+      await stopPoller();
+      await fetchStatuses();
+    } catch (err) {
+      setError(`Failed to stop poller: ${err.message}`);
+    } finally {
+      setControlsLoading(prev => ({ ...prev, stopPoller: false }));
+    }
+  };
+
+  // Fetch status on component mount and every 5 seconds
+  useEffect(() => {
     // Initial fetch
-    fetchStatus();
+    fetchStatuses();
     
     // Set up interval for polling
-    const intervalId = setInterval(fetchStatus, 5000);
+    const intervalId = setInterval(fetchStatuses, 5000);
     
     // Clean up interval on unmount
     return () => clearInterval(intervalId);
@@ -65,7 +137,7 @@ export default function StatusBar() {
 
   // Determine status message and color
   const getStatusInfo = () => {
-    if (loading && !status) {
+    if (loading && !queueStatus) {
       return { message: 'Loading system status...', color: 'bg-gray-700' };
     }
     
@@ -73,11 +145,11 @@ export default function StatusBar() {
       return { message: `Error: ${error}`, color: 'bg-red-700' };
     }
     
-    if (!status) {
+    if (!queueStatus) {
       return { message: 'Status unavailable', color: 'bg-gray-700' };
     }
     
-    if (status.isPaused) {
+    if (queueStatus.isPaused) {
       const resumeInfo = getResumeTimeInfo();
       return { 
         message: `System Rate Limited - Queue Paused - Resumes ${resumeInfo?.relative || 'soon'}`, 
@@ -85,15 +157,29 @@ export default function StatusBar() {
       };
     }
     
-    if (status.isProcessing) {
+    // Check if services are active
+    const queueActive = queueStatus.isActive;
+    const pollerActive = pollerStatus?.isActive;
+    
+    if (!queueActive && !pollerActive) {
+      return { message: 'System Idle - Both Services Paused', color: 'bg-gray-700' };
+    }
+    
+    if (queueStatus.isProcessing) {
       return { message: 'System Active - Processing Video', color: 'bg-blue-700' };
     }
     
-    if (status.length > 0) {
-      return { message: `System Ready - ${status.length} item(s) in queue`, color: 'bg-green-700' };
+    if (queueStatus.length > 0) {
+      return { 
+        message: `System Ready - ${queueStatus.length} item(s) in queue${!queueActive ? ' (Queue Paused)' : ''}${!pollerActive ? ' (Poller Paused)' : ''}`, 
+        color: 'bg-green-700' 
+      };
     }
     
-    return { message: 'System Ready - Queue Empty', color: 'bg-green-700' };
+    return { 
+      message: `System Ready - Queue Empty${!queueActive ? ' (Queue Paused)' : ''}${!pollerActive ? ' (Poller Paused)' : ''}`, 
+      color: 'bg-green-700' 
+    };
   };
 
   const statusInfo = getStatusInfo();
@@ -107,11 +193,11 @@ export default function StatusBar() {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex items-center">
-          <div className={`w-3 h-3 rounded-full mr-2 ${status?.isPaused ? 'bg-amber-300 animate-pulse' : 'bg-green-300'}`}></div>
+          <div className={`w-3 h-3 rounded-full mr-2 ${queueStatus?.isPaused ? 'bg-amber-300 animate-pulse' : 'bg-green-300'}`}></div>
           <span className="font-medium">{statusInfo.message}</span>
         </div>
         <div className="flex items-center">
-          {status?.isPaused && resumeTimeInfo && (
+          {queueStatus?.isPaused && resumeTimeInfo && (
             <span className="text-xs mr-4">
               Resumes: {resumeTimeInfo.formatted}
             </span>
@@ -130,6 +216,65 @@ export default function StatusBar() {
       {/* Collapsible Queue Section */}
       {isExpanded && (
         <div className="border border-t-0 border-gray-700 rounded-b-lg p-4 bg-gray-900">
+          {/* Manual Control Panel */}
+          <div className="mb-4 p-3 border border-gray-700 rounded-lg bg-gray-800">
+            <h3 className="text-lg font-medium mb-3">Manual Controls</h3>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {/* Queue Controls */}
+              <div className="p-3 border border-gray-600 rounded-lg">
+                <h4 className="font-medium mb-2">Submission Queue</h4>
+                <p className="text-sm text-gray-300 mb-3">
+                  Status: {queueStatus?.isActive ? 
+                    <span className="text-green-400">Active</span> : 
+                    <span className="text-gray-400">Paused</span>}
+                </p>
+                <div className="flex space-x-2">
+                  <button 
+                    className="btn bg-green-700 hover:bg-green-800 disabled:bg-gray-600"
+                    onClick={handleStartQueue}
+                    disabled={queueStatus?.isActive || controlsLoading.startQueue}
+                  >
+                    {controlsLoading.startQueue ? 'Starting...' : 'Start Queue'}
+                  </button>
+                  <button 
+                    className="btn bg-red-700 hover:bg-red-800 disabled:bg-gray-600"
+                    onClick={handleStopQueue}
+                    disabled={!queueStatus?.isActive || controlsLoading.stopQueue}
+                  >
+                    {controlsLoading.stopQueue ? 'Stopping...' : 'Stop Queue'}
+                  </button>
+                </div>
+              </div>
+              
+              {/* Poller Controls */}
+              <div className="p-3 border border-gray-600 rounded-lg">
+                <h4 className="font-medium mb-2">Status Poller</h4>
+                <p className="text-sm text-gray-300 mb-3">
+                  Status: {pollerStatus?.isActive ? 
+                    <span className="text-green-400">Active</span> : 
+                    <span className="text-gray-400">Paused</span>}
+                </p>
+                <div className="flex space-x-2">
+                  <button 
+                    className="btn bg-green-700 hover:bg-green-800 disabled:bg-gray-600"
+                    onClick={handleStartPoller}
+                    disabled={pollerStatus?.isActive || controlsLoading.startPoller}
+                  >
+                    {controlsLoading.startPoller ? 'Starting...' : 'Start Poller'}
+                  </button>
+                  <button 
+                    className="btn bg-red-700 hover:bg-red-800 disabled:bg-gray-600"
+                    onClick={handleStopPoller}
+                    disabled={!pollerStatus?.isActive || controlsLoading.stopPoller}
+                  >
+                    {controlsLoading.stopPoller ? 'Stopping...' : 'Stop Poller'}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+          
+          {/* Jobs Queue */}
           <VeoQueue />
         </div>
       )}
